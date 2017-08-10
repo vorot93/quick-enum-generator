@@ -86,7 +86,7 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 			if case_code == nil {
 				return nil
 			}
-			var v = nl(fmt.Sprintf("switch self.%sIface.(type) { \n %s \n } \n panic(errors.New(\"Not implemented\"))", enum_name, *case_code))
+			var v = nl(fmt.Sprintf("switch self.%sIface.(type) { \n %s \n } \n panic(errors.New(\"Invalid value of %s\"))", enum_name, *case_code, enum_name))
 			return &v
 		}()
 		if stringer_code != nil {
@@ -118,7 +118,7 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 				if case_code == nil {
 					return nil
 				}
-				var v = nl(fmt.Sprintf("switch self.Value().(type) { \n %s \n } \n return nil, errors.New(\"Not implemented\")", *case_code))
+				var v = nl(fmt.Sprintf("switch self.Value().(type) { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
 				return &v
 			}()
 			if marshal_code != nil {
@@ -153,7 +153,7 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 				}
 				var v string
 				v += nl(fmt.Sprintf("var v = self.Value(); if v == nil { return nil, errors.New(\"%s cannot be nil\") }", enum_name))
-				v += nl(fmt.Sprintf("switch v.(type) { \n %s \n } \n return nil, errors.New(\"Not implemented\")", *case_code))
+				v += nl(fmt.Sprintf("switch v.(type) { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
 				return &v
 			}()
 			if marshal_code != nil {
