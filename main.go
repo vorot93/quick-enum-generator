@@ -12,13 +12,22 @@ import (
 type EnumVariantMap map[string]string
 
 type EnumInfo struct {
-	Variants   EnumVariantMap `toml:"variants"`
+	Default  *string        `toml:"default"`
+	Variants EnumVariantMap `toml:"variants"`
 }
 type EnumTypeMap map[string]EnumInfo
 
 func nl(v string) string {
 	v += "\n"
 	return v
+}
+
+func set_default(enum_name string, enum_info EnumInfo) string {
+	if enum_info.Default != nil {
+		return fmt.Sprintf("if len(*self) == 0 { *self = %s }", enum_name+*enum_info.Default)
+	} else {
+		return ""
+	}
 }
 
 func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
@@ -82,7 +91,8 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 			return &v
 		}()
 		if stringer_code != nil {
-			code += nl(fmt.Sprintf("func (self *%s) String() string { \n %s \n }", enum_name, *stringer_code))
+    			code += "\n"
+			code += nl(fmt.Sprintf("func (self *%s) String() string { %s %s \n }", enum_name, nl(set_default(enum_name, enum_info)), nl(*stringer_code)))
 		}
 
 		if enable_json {
@@ -111,7 +121,8 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 				return &v
 			}()
 			if marshal_code != nil {
-				code += nl(fmt.Sprintf("func (self *%s) MarshalJSON() ([]byte, error) { \n %s \n }", enum_name, *marshal_code))
+    				code += "\n"
+				code += nl(fmt.Sprintf("func (self *%s) MarshalJSON() ([]byte, error) { %s %s \n }", enum_name, nl(set_default(enum_name, enum_info)), nl(*marshal_code)))
 			}
 		}
 
@@ -142,7 +153,8 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 				return &v
 			}()
 			if marshal_code != nil {
-				code += nl(fmt.Sprintf("func (self *%s) GetBSON() (interface{}, error) { \n %s \n }", enum_name, *marshal_code))
+    				code += "\n"
+				code += nl(fmt.Sprintf("func (self *%s) GetBSON() (interface{}, error) { %s %s \n }", enum_name, nl(set_default(enum_name, enum_info)), nl(*marshal_code)))
 			}
 		}
 
