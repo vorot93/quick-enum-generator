@@ -9,16 +9,9 @@ import (
 	"sort"
 )
 
-type VariantInfo struct {
-	String *string `toml:"string"`
-}
+type EnumVariantMap map[string]string
 
-type VariantName string
-type EnumVariantMap map[string]VariantInfo
-
-type EnumName string
 type EnumInfo struct {
-	PrefixName string         `toml:"prefix"`
 	Variants   EnumVariantMap `toml:"variants"`
 }
 type EnumTypeMap map[string]EnumInfo
@@ -47,17 +40,14 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 
 		var full_names = map[string]string{}
 		for var_name := range enum_info.Variants {
-			full_names[var_name] = fmt.Sprintf("%s%s", enum_info.PrefixName, var_name)
+			full_names[var_name] = fmt.Sprintf("%s%s", enum_name, var_name)
 		}
 
-		code += nl(fmt.Sprintf("type %sIface interface { \n %sIfaceFunc() }", enum_name, enum_name))
-		code += nl(fmt.Sprintf("type %s struct { %sIface }", enum_name, enum_name))
-		code += nl(fmt.Sprintf("func (self *%s) Value() %sIface { return self.%sIface; }", enum_name, enum_name, enum_name))
+		code += nl(fmt.Sprintf("type %s string", enum_name))
 
 		for _, var_name := range sorted_var_list {
 			var full_var_name = full_names[var_name]
-			code += nl(fmt.Sprintf("type %s struct{}", full_var_name))
-			code += nl(fmt.Sprintf("func (%s) %sIfaceFunc() {}", full_var_name, enum_name))
+			code += nl(fmt.Sprintf("const %s %s = \"%s\"", full_var_name, enum_name, enum_info.Variants[var_name]))
 		}
 
 		var stringer_code = func() *string {
@@ -72,10 +62,10 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					case_code += nl(fmt.Sprintf("case %s:", full_names[var_name]))
 					case_code += nl(fmt.Sprintf("	return \"%s\"", func() string {
 						var v = enum_info.Variants[var_name]
-						if v.String != nil {
-							return *v.String
+						if len(v) > 0 {
+							return v
 						} else {
-							return full_names[var_name]
+							return var_name
 						}
 					}()))
 				}
@@ -86,7 +76,7 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 			if case_code == nil {
 				return nil
 			}
-			var v = nl(fmt.Sprintf("switch self.%sIface.(type) { \n %s \n } \n panic(errors.New(\"Invalid value of %s\"))", enum_name, *case_code, enum_name))
+			var v = nl(fmt.Sprintf("switch *self { \n %s \n } \n panic(errors.New(\"Invalid value of %s\"))", *case_code, enum_name))
 			return &v
 		}()
 		if stringer_code != nil {
@@ -103,13 +93,10 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					}
 					sorted_list.Sort()
 					for _, var_name := range sorted_list {
-						var var_info = enum_info.Variants[var_name]
-						if var_info.String == nil {
-							return nil
-						}
+						var s = enum_info.Variants[var_name]
 
 						case_code += nl(fmt.Sprintf("case %s:", full_names[var_name]))
-						case_code += nl(fmt.Sprintf("	return json.Marshal(\"%s\")", *var_info.String))
+						case_code += nl(fmt.Sprintf("	return json.Marshal(\"%s\")", s))
 					}
 
 					return &case_code
@@ -118,11 +105,11 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 				if case_code == nil {
 					return nil
 				}
-				var v = nl(fmt.Sprintf("switch self.Value().(type) { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
+				var v = nl(fmt.Sprintf("switch *self { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
 				return &v
 			}()
 			if marshal_code != nil {
-				code += nl(fmt.Sprintf("func (self %s) MarshalJSON() ([]byte, error) { \n %s \n }", enum_name, *marshal_code))
+				code += nl(fmt.Sprintf("func (self *%s) MarshalJSON() ([]byte, error) { \n %s \n }", enum_name, *marshal_code))
 			}
 		}
 
@@ -136,13 +123,10 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					}
 					sorted_list.Sort()
 					for _, var_name := range sorted_list {
-						var var_info = enum_info.Variants[var_name]
-						if var_info.String == nil {
-							return nil
-						}
+						var s = enum_info.Variants[var_name]
 
 						case_code += nl(fmt.Sprintf("case %s:", full_names[var_name]))
-						case_code += nl(fmt.Sprintf("	return \"%s\", nil", *var_info.String))
+						case_code += nl(fmt.Sprintf("	return \"%s\", nil", s))
 					}
 
 					return &case_code
@@ -152,12 +136,11 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					return nil
 				}
 				var v string
-				v += nl(fmt.Sprintf("var v = self.Value(); if v == nil { return nil, errors.New(\"%s cannot be nil\") }", enum_name))
-				v += nl(fmt.Sprintf("switch v.(type) { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
+				v += nl(fmt.Sprintf("switch *self { \n %s \n } \n return nil, errors.New(\"Invalid value of %s\")", *case_code, enum_name))
 				return &v
 			}()
 			if marshal_code != nil {
-				code += nl(fmt.Sprintf("func (self %s) GetBSON() (interface{}, error) { \n %s \n }", enum_name, *marshal_code))
+				code += nl(fmt.Sprintf("func (self *%s) GetBSON() (interface{}, error) { \n %s \n }", enum_name, *marshal_code))
 			}
 		}
 
@@ -171,13 +154,10 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					}
 					sorted_list.Sort()
 					for _, var_name := range sorted_list {
-						var var_info = enum_info.Variants[var_name]
-						if var_info.String == nil {
-							return nil
-						}
+						var s = enum_info.Variants[var_name]
 
-						case_code += nl(fmt.Sprintf("case \"%s\":", *var_info.String))
-						case_code += nl(fmt.Sprintf("	self.%sIface = %s{}", enum_name, full_names[var_name]))
+						case_code += nl(fmt.Sprintf("case \"%s\":", s))
+						case_code += nl(fmt.Sprintf("	*self = %s", full_names[var_name]))
 						case_code += nl("	return nil")
 					}
 
@@ -211,13 +191,10 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 					}
 					sorted_list.Sort()
 					for _, var_name := range sorted_list {
-						var var_info = enum_info.Variants[var_name]
-						if var_info.String == nil {
-							return nil
-						}
+						var s = enum_info.Variants[var_name]
 
-						case_code += nl(fmt.Sprintf("case \"%s\":", *var_info.String))
-						case_code += nl(fmt.Sprintf("	self.%sIface = %s{}", enum_name, full_names[var_name]))
+						case_code += nl(fmt.Sprintf("case \"%s\":", s))
+						case_code += nl(fmt.Sprintf("	*self = %s", full_names[var_name]))
 						case_code += nl("	return nil")
 					}
 
