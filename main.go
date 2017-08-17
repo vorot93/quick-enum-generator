@@ -50,6 +50,8 @@ func generateCode(m EnumTypeMap, enable_json bool, enable_bson bool) string {
 			code += nl(fmt.Sprintf("const %s %s = \"%s\"", full_var_name, enum_name, enum_info.Variants[var_name]))
 		}
 
+		code += nl(fmt.Sprintf("func (self %s) GetPtr() *%s { var v = self; return &v; }", enum_name, enum_name))
+
 		var stringer_code = func() *string {
 			var case_code = func() *string {
 				var case_code string
